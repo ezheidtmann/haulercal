@@ -7,6 +7,7 @@ import hashlib
 
 import pytz
 import requests
+import icalendar
 
 epoch = pytz.utc.localize(datetime(1970, 1, 1, 0, 0, 0))
 
@@ -55,50 +56,23 @@ def generate_ics_events_from_pm_events(events):
         # generate naive datetime from the stamp given in the event
         # TODO: verify timezone; empirically these start at 6am in PM display
         dt = datetime.fromtimestamp(ev['start'] / 1000)
-        ics_date = f'{dt.year:04}{dt.month:02}{dt.day:02}'
-        ics_datetime = f'{dt.year:04}{dt.month:02}{dt.day:02}T{dt.hour:02}{dt.minute:02}{dt.second:02}'
-        event_hash = sha256_sorted_json(ev)[:15]
-        desc = 'some description'
-        title = ev['title']
-        yield textwrap.dedent(f'''\
-            BEGIN:VEVENT
-            CREATED;VALUE=DATE-TIME:{ics_datetime}
-            DTSTART;VALUE=DATE:{ics_date}
-            DTSTAMP;VALUE=DATE-TIME:{ics_datetime}
-            LAST-MODIFIED;VALUE=DATE-TIME:{ics_datetime}
-            UID:{event_hash}-hauler-event@portlandmaps.com
-            DESCRIPTION:{desc}
-            SUMMARY:{title}
-            SEQUENCE:1
-            END:VEVENT
-            ''')
+        event_hash = sha256_sorted_json(ev)
+        ics_event = icalendar.Event()
+        ics_event.add('dtstart', dt.date())
+        ics_event.add('uid', f'{event_hash}-hauler-event@portlandmaps.com')
+        ics_event.add('summary', ev['title'])
+        yield ics_event
 
 def write_calendar_from_events(f, events, calname='Hauler Pickup'):
-    preamble = textwrap.dedent(f'''\
-        BEGIN:VCALENDAR
-        PRODID;X-RICAL-TZSOURCE=TZINFO:-//HaulerCal//EN
-        CALSCALE:GREGORIAN
-        X-WR-CALNAME:{calname}
-        METHOD:PUBLISH
-        VERSION:2.0
-        BEGIN:VTIMEZONE
-        TZID;X-RICAL-TZSOURCE=TZINFO:America/Los_Angeles
-        BEGIN:DAYLIGHT
-        DTSTART:20190310T020000
-        RDATE:20190310T020000
-        TZOFFSETFROM:-0800
-        TZOFFSETTO:-0700
-        TZNAME:PDT
-        END:DAYLIGHT
-        END:VTIMEZONE
-        ''')
-    f.write(preamble.replace('\n', '\r\n'))
-    for ics_event_text in generate_ics_events_from_pm_events(events):
-        f.write(ics_event_text.replace('\n', '\r\n'))
-    
-    suffix = 'END:VCALENDAR\r\n'
-    f.write(suffix)
-
+    cal = icalendar.Calendar()
+    cal.add('prodid', '-//HaulerCal/EN')
+    cal.add('version', '2.0')
+    for ics_event in generate_ics_events_from_pm_events(events):
+        cal.add_component(ics_event)
+    if f is sys.stdout:
+        f.buffer.write(cal.to_ical())
+    else:
+        f.write(cal.to_ical())
 
 def demo():
     today = pytz.utc.localize(datetime.utcnow())
