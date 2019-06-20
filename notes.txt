@@ -1,0 +1,163 @@
+api_key: 7D700138A0EA40349E799EA216BF82F9
+referer: https://www.portlandmaps.com/blah
+
+https://www.portlandmaps.com/locator/Default/GeocodeServer/findAddressCandidates/?Single%20Line%20Input=4906%20NE%20Grand&f=json&outSR=%7B%22wkid%22%3A102100%7D&maxLocations=10&landmarks=1&id_matches=1&alt_ids=1&centerline=1
+  - needs referer but not api key
+Single Line Input: 4906 NE Grand
+f: json
+outSR: {"wkid":102100}
+maxLocations: 10
+landmarks: 1
+id_matches: 1
+alt_ids: 1
+centerline: 1
+
+{
+    "status": "success",
+    "spatialReference": {
+        "wkid": 102100,
+        "latestWkid": 3857
+    },
+    "candidates": [
+        {
+            "location": {
+                "x": -13654469.92,
+                "y": 5709844.012
+            },
+            "attributes": {
+                "state_id": "1N1E23BC  5100",
+                "status": "Active",
+                "city": "Portland",
+                "jurisdiction": "PORTLAND",
+                "zip_code": 97211,
+                "state": "OREGON",
+                "zip4": 3926,
+                "property_id": "R206401",
+                "id": 584365,
+                "type": "address",
+                "county": "MULTNOMAH"
+            },
+            "score": 100,
+            "address": "4906 NE GRAND AVE",
+            "extent": {
+                "ymin": 5709843.762,
+                "ymax": 5709844.262,
+                "xmin": -13654470.17,
+                "xmax": -13654469.67
+            }
+        }
+    ]
+}
+
+------------
+
+https://www.portlandmaps.com/api/detail.cfm?detail_type=hauler&detail_id=R206401&sections=events&frequency=efw&api_key=7D700138A0EA40349E799EA216BF82F9&from=1560668400000&to=1561273200000&utc_offset_from=420&utc_offset_to=420
+ - needs referer
+
+detail_type: hauler
+detail_id: R206401
+sections: events
+frequency: efw
+api_key: 7D700138A0EA40349E799EA216BF82F9
+from: 1560668400000
+to: 1561273200000
+  - milliseconds since epoch in utc_offset_to timezone
+utc_offset_from: 420
+  - minutes
+utc_offset_to: 420
+
+
+- frequencey is "efw" every four weeks or "eow" every other week
+  1560668400000
+
+[
+  {
+    "title": "Recycling",
+    "start": 1560949200000,
+    "end": 1560952800000,
+    "calendar": "purple",
+    "id": 2,
+    "class": "event-recycling"
+  },
+  {
+    "title": "Composting",
+    "start": 1560949200000,
+    "end": 1560952800000,
+    "calendar": "purple",
+    "id": 3,
+    "class": "event-composting"
+  },
+  {
+    "title": "Garbage",
+    "start": 1561554000000,
+    "end": 1561557600000,
+    "calendar": "orange",
+    "id": 1,
+    "class": "event-garbage"
+  },
+  {
+    "title": "Recycling",
+    "start": 1561554000000,
+    "end": 1561557600000,
+    "calendar": "orange",
+    "id": 4,
+    "class": "event-recycling"
+  },
+  {
+    "title": "Composting",
+    "start": 1561554000000,
+    "end": 1561557600000,
+    "calendar": "orange",
+    "id": 5,
+    "class": "event-composting"
+  }
+]
+
+seems like the calendar goes forever; we'll have to enforce an upper bound because we can't use recurrence rules
+
+events stream doesn't respect the query parameters?
+ - verified on portlandmaps
+ - seems to go back a week or so from the `from` time but not past the `to` time
+    - but only for compost & recycling! garbage respects the parameters!
+
+ux
+  - come to site, enter address or property id
+  - show hauler schedule for eow AND efw
+  - show ical & gcal link
+
+ical & gcal ux
+ - show pickup dates until 1 year after request / generation date
+ - after cutoff, show recurring daily event indicating that there isn't data
+  
+
+plan
+ - research ical & gcal formats
+ - create single-event proof
+ - generate a cal from a range of events
+ - automate with property id & weekliness
+ - add website around it
+ - start gathering data about which parts of the city get pickup on which days and maybe make a fun map
+
+
+maybe also reverse engineer name search?
+
+ICS generation
+ - script works but it's manual ICS generation
+ - should use a module for line wrapping and other encoding requirements
+ - also line endings is done poorly and is brittle to adding/removing lines in triple-quoted strings
+
+
+Google Calendar
+  - one-click: https://calendar.google.com/calendar/b/0/r?cid=http://haulercal.s3.amazonaws.com/test-cal2.ics
+      - need to use http or webcal:// (?)
+      - try urlencode or base64 some people say
+  - need to use email-address form for UID on event; otherwise will get access denied error
+  - name comes from the X-WR-CALNAME property
+  - name & event data is not shown for first use of URL; it's cached for some time after that
+    (rumor is 8-12 hours)
+  - adding through the form might force a refresh; caching might apply only to the cid= parameter
+
+Apple Calendar on Mac
+ - add calendar subscription
+ - configurable refresh frequency
+ - works with same ics as works for gcal
